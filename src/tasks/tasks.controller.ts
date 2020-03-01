@@ -1,44 +1,61 @@
+import { User } from './../auth/user.entity';
+import { TaskStatus } from './task-status.enum';
 import { TaskStatusValidationPipe } from './pipes/task-status-validation.pipe';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { TasksService } from './tasks.service';
-import { Controller, Get, Post, Body, Param, Delete, Patch, Query, UsePipes, ValidationPipe } from '@nestjs/common';
-import { Task, TaskStatus } from './task.model';
+import { Controller, Get, Post, Body, Param, Delete, Patch, Query, UsePipes, ValidationPipe, ParseIntPipe, UseGuards, Logger } from '@nestjs/common';
 import { GetTasksFilterDto } from './dto/get-tasks-filter.dto';
+import { Task } from './task.entity';
+import { AuthGuard } from '@nestjs/passport';
+import { getUser } from 'src/auth/get-user.decorator';
 
 @Controller('tasks')
-export class TasksController {
+@UseGuards(AuthGuard())
+export class TasksController {  
+    private logger = new Logger ('TasksControler');
     constructor(private tasksService: TasksService) {}
 
     @Get()
-    getTasks(@Query(ValidationPipe) filterDto: GetTasksFilterDto): Task[] {
-        if(Object.keys(filterDto).length) {
-                
-        } else {
-            return this.tasksService.getAllTasks();
-        }
+    getTasks(
+        @Query(ValidationPipe) filterDto: GetTasksFilterDto,
+        @getUser() user: User,
+    ): Promise<Task[]> {
+        this.logger.verbose(`User "${user.username}" retrieving all tasks. Filters: ${JSON.stringify(filterDto)}`);
+        return this.tasksService.getTasks(filterDto, user);
     }
 
     @Get('/:id')
-    getTaskByID(@Param('id') id: string): Task {
-        return this.tasksService.getTaskBtID(id);
+    getTaskById(
+        @Param('id', ParseIntPipe) id: number,
+        @getUser() user: User,
+    ): Promise<Task> {
+        return this.tasksService.getTaskById(id, user   );
     }
 
     @Post()
     @UsePipes(ValidationPipe)
-    createTask(@Body() CreateTaskDto: CreateTaskDto): Task {
-        return this.tasksService.createTask(CreateTaskDto);
+    createTask(
+        @Body() createTaskDto: CreateTaskDto,
+        @getUser() user: User,
+    ): Promise<Task> {
+        this.logger.verbose(`User "${user.username}" creating a new task. Data: ${JSON.stringify(createTaskDto)}`);
+        return this.tasksService.createTask(createTaskDto, user);
     }
 
     @Delete('/:id')
-    deleteTask(@Param ('id') id: string): void {
-        this.tasksService.deleteTask(id);
+    deleteTask(
+        @Param ('id', ParseIntPipe) id: number, 
+        @getUser() user: User,
+    ): Promise<void> {
+        return this.tasksService.deleteTask(id, user);
     }
 
     @Patch('/:id/status')
     updateTaskStatus(
-        @Param('id') id: string,
+        @Param('id', ParseIntPipe) id: number,
         @Body('status', TaskStatusValidationPipe) status: TaskStatus,
-    ): Task {
-        return this.tasksService.updateTaskStatus(id, status);
+        @getUser() user:User,
+    ): Promise<Task>{
+        return this.tasksService.updateTaskStatus(id, status, user);
     }
 }
